@@ -57,7 +57,7 @@ class JobPostingFactory extends Factory
             'publisher_id' => Publisher::factory(),
             'title' => $this->faker->randomElement($jobTitles),
             'description' => $this->faker->paragraphs(3, true),
-            'location' => $this->faker->city() . ', ' . $this->faker->stateAbbr() . ', ' . $this->faker->countryCode(),
+            'location' => $this->faker->city().', '.$this->faker->stateAbbr().', '.$this->faker->countryCode(),
             'latitude' => $coordinates['latitude'],
             'longitude' => $coordinates['longitude'],
             'employment_type' => $this->faker->randomElement(EmploymentType::cases()),

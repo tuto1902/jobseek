@@ -7,6 +7,8 @@ use App\JobStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class JobPosting extends Model
 {
@@ -49,6 +51,18 @@ class JobPosting extends Model
         return $this->belongsTo(Publisher::class);
     }
 
+    public function groupAssignments(): HasMany
+    {
+        return $this->hasMany(JobGroupAssignment::class);
+    }
+
+    public function jobGroups(): BelongsToMany
+    {
+        return $this->belongsToMany(JobGroup::class, 'job_group_assignments')
+            ->withPivot('weight_percentage')
+            ->withTimestamps();
+    }
+
     public function getIsExpiredAttribute(): bool
     {
         return $this->expiration_date && $this->expiration_date->isPast();
@@ -64,5 +78,10 @@ class JobPosting extends Model
         }
 
         return null;
+    }
+
+    public function clicks(): HasMany
+    {
+        return $this->hasMany(JobClick::class);
     }
 }

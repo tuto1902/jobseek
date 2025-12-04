@@ -5,6 +5,9 @@ use App\Models\JobGroup;
 use App\Models\JobGroupAssignment;
 use App\Models\JobPosting;
 use App\Models\Publisher;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+
+uses(RefreshDatabase::class);
 
 beforeEach(function () {
     $this->publisher = Publisher::factory()->create();
@@ -31,7 +34,7 @@ it('can assign jobs to groups with weights', function () {
         'weight_percentage' => 50.0,
     ]);
 
-    expect($assignment->weight_percentage)->toBe(50.0);
+    expect($assignment->weight_percentage)->toBe('50.00');
     expect($assignment->jobPosting->id)->toBe($this->jobPosting->id);
     expect($assignment->jobGroup->id)->toBe($this->jobGroup->id);
 });

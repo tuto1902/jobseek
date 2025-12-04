@@ -3,8 +3,8 @@
 namespace App\Filament\Resources\JobPostings\Schemas;
 
 use App\EmploymentType;
-use App\JobStatus;
 use App\Filament\Resources\Publishers\RelationManagers\JobPostingsRelationManager;
+use App\JobStatus;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\RichEditor;
 use Filament\Forms\Components\Select;
