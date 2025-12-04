@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\JobGroups\RelationManagers;
 
+use Closure;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
@@ -13,6 +14,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Tabs\Tab;
+use Filament\Schemas\Components\View;
 use Filament\Schemas\Schema;
 use Filament\Support\Enums\Alignment;
 use Filament\Support\Icons\Heroicon;
@@ -41,6 +43,7 @@ class AssignmentsRelationManager extends RelationManager
     {
         return $schema
             ->components([
+                View::make('filament.job-groups.progress-bar'),
                 Grid::make(2)
                     ->schema([
                         Select::make('job_posting_id')
@@ -48,7 +51,17 @@ class AssignmentsRelationManager extends RelationManager
                             ->relationship(
                                 name: 'jobPosting',
                                 titleAttribute: 'title',
-                                modifyQueryUsing: fn ($query) => $query->whereNotIn('job_postings.id', $this->getOwnerRecord()->jobPostings()->pluck('job_postings.id'))
+                                modifyQueryUsing: function ($query, ?Model $record) {
+                                    // Get already assigned job posting IDs
+                                    $assignedIds = $this->getOwnerRecord()->jobPostings()->pluck('job_postings.id');
+
+                                    // If editing, exclude the current record's job posting from the exclusion list
+                                    if ($record && $record->job_posting_id) {
+                                        $assignedIds = $assignedIds->reject(fn ($id) => $id === $record->job_posting_id);
+                                    }
+
+                                    return $query->whereNotIn('job_postings.id', $assignedIds);
+                                }
                             )
                             ->searchable()
                             ->preload()
@@ -59,7 +72,28 @@ class AssignmentsRelationManager extends RelationManager
                             ->label('Weight Percentage')
                             ->numeric()
                             ->required()
-                            ->rules(['numeric', 'min:0.01', 'max:100'])
+                            ->live(onBlur: true)
+                            ->rules([
+                                'numeric',
+                                'min:0.01',
+                                'max:100',
+                                fn ($component, $record): Closure => function (string $attribute, $value, Closure $fail) use ($record) {
+                                    $jobGroup = $this->getOwnerRecord();
+                                    $currentRecordId = $record?->id;
+
+                                    // Calculate total weight excluding current record if editing
+                                    $currentTotal = $jobGroup->assignments()
+                                        ->when($currentRecordId, fn ($query) => $query->where('id', '!=', $currentRecordId))
+                                        ->sum('weight_percentage');
+
+                                    $newTotal = $currentTotal + (float) $value;
+
+                                    if ($newTotal > 100.01) { // Allow small floating point tolerance
+                                        $available = 100 - $currentTotal;
+                                        $fail("The total weight cannot exceed 100%. Currently {$currentTotal}% is assigned. Maximum available: {$available}%");
+                                    }
+                                },
+                            ])
                             ->step(0.01)
                             ->placeholder('Enter weight percentage (0.01 - 100)')
                             ->suffix('%')

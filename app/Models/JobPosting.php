@@ -79,4 +79,9 @@ class JobPosting extends Model
 
         return null;
     }
+
+    public function clicks(): HasMany
+    {
+        return $this->hasMany(JobClick::class);
+    }
 }

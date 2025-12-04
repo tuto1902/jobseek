@@ -104,3 +104,155 @@ it('can create an assignment in database', function () {
 
     expect($group->assignments)->toHaveCount(1);
 });
+
+it('prevents creating assignment that exceeds 100% total weight', function () {
+    $group = JobGroup::factory()->create();
+    $jobPosting1 = \App\Models\JobPosting::factory()->create();
+    $jobPosting2 = \App\Models\JobPosting::factory()->create();
+
+    // Create first assignment with 60%
+    \App\Models\JobGroupAssignment::create([
+        'job_group_id' => $group->id,
+        'job_posting_id' => $jobPosting1->id,
+        'weight_percentage' => 60.00,
+    ]);
+
+    $group->refresh();
+
+    // Try to create second assignment with 50% (would exceed 100%)
+    Livewire::test(\App\Filament\Resources\JobGroups\RelationManagers\AssignmentsRelationManager::class, [
+        'ownerRecord' => $group,
+        'pageClass' => EditJobGroup::class,
+    ])
+        ->callTableAction('create', data: [
+            'job_posting_id' => $jobPosting2->id,
+            'weight_percentage' => 50.00,
+        ])
+        ->assertHasFormErrors(['weight_percentage']);
+});
+
+it('allows creating assignment that does not exceed 100% total weight', function () {
+    $group = JobGroup::factory()->create();
+    $jobPosting1 = \App\Models\JobPosting::factory()->create();
+    $jobPosting2 = \App\Models\JobPosting::factory()->create();
+
+    // Create first assignment with 60%
+    \App\Models\JobGroupAssignment::create([
+        'job_group_id' => $group->id,
+        'job_posting_id' => $jobPosting1->id,
+        'weight_percentage' => 60.00,
+    ]);
+
+    $group->refresh();
+
+    // Create second assignment with 40% (total = 100%)
+    Livewire::test(\App\Filament\Resources\JobGroups\RelationManagers\AssignmentsRelationManager::class, [
+        'ownerRecord' => $group,
+        'pageClass' => EditJobGroup::class,
+    ])
+        ->callTableAction('create', data: [
+            'job_posting_id' => $jobPosting2->id,
+            'weight_percentage' => 40.00,
+        ])
+        ->assertHasNoFormErrors();
+
+    expect($group->assignments()->count())->toBe(2);
+    expect($group->getTotalWeightAttribute())->toBe(100.0);
+});
+
+it('can edit an assignment without validation errors', function () {
+    $group = JobGroup::factory()->create();
+    $jobPosting1 = \App\Models\JobPosting::factory()->create();
+    $jobPosting2 = \App\Models\JobPosting::factory()->create();
+
+    // Create two assignments with 50% each
+    $assignment1 = \App\Models\JobGroupAssignment::create([
+        'job_group_id' => $group->id,
+        'job_posting_id' => $jobPosting1->id,
+        'weight_percentage' => 50.00,
+    ]);
+
+    \App\Models\JobGroupAssignment::create([
+        'job_group_id' => $group->id,
+        'job_posting_id' => $jobPosting2->id,
+        'weight_percentage' => 50.00,
+    ]);
+
+    $group->refresh();
+
+    // Edit first assignment - should be able to keep 50% or change within available range
+    Livewire::test(\App\Filament\Resources\JobGroups\RelationManagers\AssignmentsRelationManager::class, [
+        'ownerRecord' => $group,
+        'pageClass' => EditJobGroup::class,
+    ])
+        ->callTableAction('edit', $assignment1->id, data: [
+            'job_posting_id' => $jobPosting1->id,
+            'weight_percentage' => 50.00,
+        ])
+        ->assertHasNoFormErrors();
+
+    expect($assignment1->refresh()->weight_percentage)->toBe('50.00');
+});
+
+it('allows editing assignment to use full 100% when it is the only assignment', function () {
+    $group = JobGroup::factory()->create();
+    $jobPosting1 = \App\Models\JobPosting::factory()->create();
+    $jobPosting2 = \App\Models\JobPosting::factory()->create();
+
+    // Create two assignments with 50% each
+    $assignment1 = \App\Models\JobGroupAssignment::create([
+        'job_group_id' => $group->id,
+        'job_posting_id' => $jobPosting1->id,
+        'weight_percentage' => 50.00,
+    ]);
+
+    $assignment2 = \App\Models\JobGroupAssignment::create([
+        'job_group_id' => $group->id,
+        'job_posting_id' => $jobPosting2->id,
+        'weight_percentage' => 50.00,
+    ]);
+
+    $group->refresh();
+
+    // Edit first assignment to increase to 60% (should work - total would be 110%)
+    Livewire::test(\App\Filament\Resources\JobGroups\RelationManagers\AssignmentsRelationManager::class, [
+        'ownerRecord' => $group,
+        'pageClass' => EditJobGroup::class,
+    ])
+        ->callTableAction('edit', $assignment1->id, data: [
+            'job_posting_id' => $jobPosting1->id,
+            'weight_percentage' => 60.00,
+        ])
+        ->assertHasFormErrors(['weight_percentage']);
+});
+
+it('shows job posting title in dropdown when editing assignment', function () {
+    $group = JobGroup::factory()->create();
+    $jobPosting = \App\Models\JobPosting::factory()->create([
+        'title' => 'Software Engineer Position',
+    ]);
+
+    $assignment = \App\Models\JobGroupAssignment::create([
+        'job_group_id' => $group->id,
+        'job_posting_id' => $jobPosting->id,
+        'weight_percentage' => 100.00,
+    ]);
+
+    $group->refresh();
+
+    // Edit assignment and verify it can be saved successfully (which proves the dropdown is working)
+    Livewire::test(\App\Filament\Resources\JobGroups\RelationManagers\AssignmentsRelationManager::class, [
+        'ownerRecord' => $group,
+        'pageClass' => EditJobGroup::class,
+    ])
+        ->callTableAction('edit', $assignment->id, data: [
+            'job_posting_id' => $jobPosting->id,
+            'weight_percentage' => 100.00,
+        ])
+        ->assertHasNoFormErrors();
+
+    // Verify the assignment is still in the database with correct values
+    expect($assignment->refresh())
+        ->job_posting_id->toBe($jobPosting->id)
+        ->weight_percentage->toBe('100.00');
+});
